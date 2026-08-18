@@ -1,0 +1,190 @@
+defaults:
+  - _self_
+
+name: train_diffusion_unet_arx5_hybrid
+_target_: arx5_dp_cfg.train_diffusion_unet_hybrid_workspace_cfg.TrainDiffusionUnetHybridWorkspace
+
+task_name: ${task.name}
+shape_meta: ${task.shape_meta}
+exp_name: "glue_test"
+
+horizon: 16
+n_obs_steps: 2
+n_action_steps: 8
+n_latency_steps: 0
+prev_cond_steps: 4
+prev_chunk_embed_dim: 128
+prev_chunk_dropout: 0.15
+prev_action_mode: future
+cfg_guidance_weight: 1.0
+dataset_obs_steps: ${n_obs_steps}
+past_action_visible: False
+keypoint_visible_rate: 1.0
+obs_as_global_cond: True
+
+policy:
+  _target_: arx5_dp_cfg.diffusion_unet_hybrid_image_policy_cfg.DiffusionUnetHybridImagePolicy
+
+  shape_meta: ${shape_meta}
+
+  noise_scheduler:
+    _target_: diffusers.schedulers.scheduling_ddim.DDIMScheduler
+    num_train_timesteps: 100
+    beta_start: 0.0001
+    beta_end: 0.02
+    beta_schedule: squaredcos_cap_v2
+    clip_sample: True
+    set_alpha_to_one: True
+    steps_offset: 0
+    prediction_type: epsilon
+
+  horizon: ${horizon}
+  n_action_steps: ${eval:'${n_action_steps}+${n_latency_steps}'}
+  n_obs_steps: ${n_obs_steps}
+  num_inference_steps: 8
+  obs_as_global_cond: ${obs_as_global_cond}
+  crop_shape: [216, 288]
+  diffusion_step_embed_dim: 128
+  down_dims: [256, 512, 1024]
+  kernel_size: 5
+  n_groups: 8
+  cond_predict_scale: True
+  obs_encoder_group_norm: True
+  eval_fixed_crop: True
+  prev_cond_steps: ${prev_cond_steps}
+  prev_chunk_embed_dim: ${prev_chunk_embed_dim}
+  prev_chunk_dropout: ${prev_chunk_dropout}
+  cfg_guidance_weight: ${cfg_guidance_weight}
+
+task:
+  name: arx5_image
+  image_shape: [3, 240, 320]
+  dataset_path: data_local/arx5_glue_test
+  shape_meta:
+    obs:
+      camera_0:
+        shape: ${task.image_shape}
+        type: rgb
+      camera_1:
+        shape: ${task.image_shape}
+        type: rgb
+      camera_2:
+        shape: ${task.image_shape}
+        type: rgb
+      robot0_eef_pos:
+        shape: [3]
+        type: low_dim
+      robot0_eef_rot_axis_angle:
+        shape: [3]
+        type: low_dim
+      robot0_gripper_width:
+        shape: [1]
+        type: low_dim
+    action:
+      shape: [7]
+  env_runner:
+    _target_: diffusion_policy.env_runner.noop_image_runner.NoopImageRunner
+  dataset:
+    _target_: arx5_dp_cfg.arx5_image_dataset_cfg.Arx5ImageDataset
+    shape_meta: ${task.shape_meta}
+    dataset_path: ${task.dataset_path}
+    cache_dir: null
+    cache_path: null
+    horizon: ${horizon}
+    pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+    pad_after: ${eval:'${n_action_steps}-1'}
+    n_obs_steps: ${dataset_obs_steps}
+    n_latency_steps: ${n_latency_steps}
+    use_cache: True
+    seed: 42
+    val_ratio: 0.10
+    max_train_episodes: null
+    target_frequency: 20.0
+    delta_action: False
+    trim_static_start_end: False
+    static_pos_threshold: 1.0e-4
+    static_rot_threshold: 1.0e-4
+    static_gripper_threshold: 1.0e-4
+    static_pad_before: 2
+    static_pad_after: 2
+    min_episode_steps: 16
+    prev_cond_steps: ${prev_cond_steps}
+    prev_action_mode: ${prev_action_mode}
+
+ema:
+  _target_: diffusion_policy.model.diffusion.ema_model.EMAModel
+  update_after_step: 0
+  inv_gamma: 1.0
+  power: 0.75
+  min_value: 0.0
+  max_value: 0.9999
+
+dataloader:
+  batch_size: 16
+  num_workers: 4
+  shuffle: True
+  pin_memory: True
+  persistent_workers: True
+
+val_dataloader:
+  batch_size: 16
+  num_workers: 4
+  shuffle: False
+  pin_memory: True
+  persistent_workers: True
+
+optimizer:
+  _target_: torch.optim.AdamW
+  lr: 1.0e-4
+  betas: [0.95, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-6
+
+training:
+  device: "cuda:0"
+  seed: 42
+  debug: False
+  resume: True
+  lr_scheduler: cosine
+  lr_warmup_steps: 500
+  num_epochs: 300
+  gradient_accumulate_every: 1
+  use_ema: True
+  rollout_every: 1000000
+  checkpoint_every: 25
+  val_every: 1
+  sample_every: 5
+  max_train_steps: null
+  max_val_steps: null
+  tqdm_interval_sec: 1.0
+
+logging:
+  project: diffusion_policy_arx5
+  resume: True
+  mode: offline
+  name: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+  tags: ["${name}", "${task_name}", "${exp_name}"]
+  id: null
+  group: null
+
+checkpoint:
+  topk:
+    monitor_key: train_loss
+    mode: min
+    k: 5
+    format_str: 'epoch={epoch:04d}-train_loss={train_loss:.3f}.ckpt'
+  save_last_ckpt: True
+  save_last_snapshot: False
+
+multi_run:
+  run_dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  wandb_name_base: ${now:%Y.%m.%d-%H.%M.%S}_${name}_${task_name}
+
+hydra:
+  job:
+    override_dirname: ${name}
+  run:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+  sweep:
+    dir: data/outputs/${now:%Y.%m.%d}/${now:%H.%M.%S}_${name}_${task_name}
+    subdir: ${hydra.job.num}

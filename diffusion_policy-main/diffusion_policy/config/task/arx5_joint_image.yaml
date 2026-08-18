@@ -1,0 +1,56 @@
+name: arx5_joint_image
+
+image_shape: [3, 240, 320]
+dataset_path: data_local/glue_clean_drop94_97
+
+shape_meta: &shape_meta
+  obs:
+    # Old ARX5 DP camera convention:
+    # camera_0 = USB wrist camera, camera_1/2 = RealSense views.
+    camera_0:
+      shape: ${task.image_shape}
+      type: rgb
+    camera_1:
+      shape: ${task.image_shape}
+      type: rgb
+    camera_2:
+      shape: ${task.image_shape}
+      type: rgb
+    robot_joint:
+      shape: [6]
+      type: low_dim
+    robot_gripper:
+      shape: [1]
+      type: low_dim
+  action:
+    # target joint q1..q6 + target gripper width
+    shape: [7]
+
+env_runner:
+  _target_: diffusion_policy.env_runner.noop_image_runner.NoopImageRunner
+
+dataset:
+  _target_: diffusion_policy.dataset.arx5_image_dataset.Arx5ImageDataset
+  shape_meta: *shape_meta
+  dataset_path: ${task.dataset_path}
+  cache_dir: null
+  cache_path: null
+  horizon: ${horizon}
+  pad_before: ${eval:'${n_obs_steps}-1+${n_latency_steps}'}
+  pad_after: ${eval:'${n_action_steps}-1'}
+  n_obs_steps: ${dataset_obs_steps}
+  n_latency_steps: ${n_latency_steps}
+  use_cache: True
+  seed: 42
+  val_ratio: 0.10
+  max_train_episodes: null
+  target_frequency: 20.0
+  action_mode: joint
+  delta_action: False
+  trim_static_start_end: False
+  static_pos_threshold: 1.0e-4
+  static_rot_threshold: 1.0e-4
+  static_gripper_threshold: 1.0e-4
+  static_pad_before: 2
+  static_pad_after: 2
+  min_episode_steps: 16

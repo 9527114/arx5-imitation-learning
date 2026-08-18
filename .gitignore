@@ -1,0 +1,72 @@
+# Python/runtime artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Local environments and editor state
+.env
+*.env
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+
+# Robot datasets, video, caches, and experiment outputs
+diffusion_policy-main/data_local/
+diffusion_policy-main/data/outputs/
+act_outputs/
+logs/
+outputs/
+dataset/
+datasets/
+*.zarr/
+*.zarr.zip
+*.zarr.zip.lock
+replay_buffer.zarr/
+videos/
+policy_logs/
+checkpoints/
+
+# Checkpoints and model weights
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
+# Media recorded/generated during experiments
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.bag
+*.jsonl
+
+# Experiment trackers
+wandb/
+runs/
+tensorboard/
+events.out.tfevents*
+
+# Local build artifacts
+build/
+build_local/
+python_build/
+install/
+dist/
+*.egg-info/
+*.o
+*.so
+*.a
+*.bin
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+
+# Local scratch/parking area
+project_trash/

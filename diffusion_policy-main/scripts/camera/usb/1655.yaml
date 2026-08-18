@@ -1,0 +1,12 @@
+usb_camera:
+  mode: manual
+  device: 0
+  resolution: [640, 480]
+  fps: 30
+  exposure: 111.0
+  gain: 2.0
+  white_balance: 3700.0
+  brightness: 14.0
+  contrast: 30.0
+  saturation: 64.0
+  tuned_at: "2026-07-08 16:55:27"
