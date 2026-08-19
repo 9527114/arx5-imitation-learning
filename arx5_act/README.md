@@ -25,7 +25,7 @@ camera_2 = RealSense 1
 ## Inspect
 
 ```bash
-cd /media/star/Elyos_PSSD/ARX5/CY_arx5_dp
+cd /path/to/arx5-imitation-learning
 source ./activate_arx5_env.sh
 
 python -m arx5_act.inspect_dataset \
