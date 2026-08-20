@@ -183,7 +183,6 @@ EPOCHS=200 \
 BATCH_SIZE=16 \
 ./scripts/train_dp_joint.sh
 ```
-
 ### 6. Diffusion Policy Deployment
 
 > **Safety notice:** real-robot deployment can move the ARX5 arm.  
@@ -202,39 +201,44 @@ Dry-run / policy check:
 CKPT_PATH=data/outputs/manual/example_dp_eef/checkpoints/latest.ckpt \
 DP_VIDEO_DEVICES=0,6,12 \
 ./scripts/run_dp_pro.sh
+```
 
 Explicit real-robot execution:
 
+```bash
 CKPT_PATH=data/outputs/manual/example_dp_eef/checkpoints/latest.ckpt \
 DP_VIDEO_DEVICES=0,6,12 \
 DP_EXECUTE=1 \
 ./scripts/run_dp_pro.sh
+```
 
 Action safety remains enabled by default. For a previously validated
 experiment that explicitly requires disabling this layer:
 
+```bash
 CKPT_PATH=data/outputs/manual/example_dp_eef/checkpoints/latest.ckpt \
 DP_VIDEO_DEVICES=0,6,12 \
 DP_EXECUTE=1 \
 DP_DISABLE_ACTION_SAFETY=1 \
 ./scripts/run_dp_pro.sh
+```
 
 Relative checkpoint and trajectory-log paths are resolved against
-diffusion_policy-main/, so the wrapper can be launched from different
+`diffusion_policy-main/`, so the wrapper can be launched from different
 working directories without changing their intended locations.
 
-DP-Joint
+#### DP-Joint
 
 DP-Joint uses a separate deployment wrapper and joint-space executor:
 
+```bash
 CKPT_PATH=data/outputs/manual/example_dp_joint/checkpoints/latest.ckpt \
 DP_JOINT_VIDEO_DEVICES=0,6,12 \
 ./scripts/run_dp_joint_pro.sh
+```
 
 DP-Joint remains an experimental branch. Check the wrapper configuration
 and hardware safety settings before real-robot use.
-```
-
 ### 7. ACT
 
 ```bash
