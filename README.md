@@ -4,7 +4,8 @@ Real-world visuomotor imitation learning on an ARX5 X5 robot arm. This repositor
 
 This is not a standalone SOTA algorithm release. Diffusion Policy is the primary baseline; ACT and previous-action-conditioned DP-CFG are experimental comparison branches adapted to the ARX5 workflow.
 
-Real-robot demo — DP-EEF glue-stick grasping on ARX5 X5：
+### Real-Robot Demo
+**Real-robot demo — DP-EEF glue-stick grasping on ARX5 X5：**
 
 
 https://github.com/user-attachments/assets/1e295701-18bd-4eb9-9f59-b7812b6429cc
@@ -185,18 +186,53 @@ BATCH_SIZE=16 \
 
 ### 6. Diffusion Policy Deployment
 
-Deployment commands can move the real robot. Verify camera order, workspace, CAN interface, gripper calibration, and reset behavior before using `--execute` through the wrapper.
+> **Safety notice:** real-robot deployment can move the ARX5 arm.  
+> Verify the workspace, camera order, CAN interface, gripper calibration,
+> reset behavior, and emergency-stop access before enabling execution.
+
+#### DP-EEF
+
+`run_dp_pro.sh` is **safe-by-default**. Running the wrapper without
+`DP_EXECUTE=1` loads the checkpoint and runs the policy pipeline without
+enabling real-robot execution.
+
+Dry-run / policy check:
 
 ```bash
 CKPT_PATH=data/outputs/manual/example_dp_eef/checkpoints/latest.ckpt \
 DP_VIDEO_DEVICES=0,6,12 \
 ./scripts/run_dp_pro.sh
-```
 
-```bash
+Explicit real-robot execution:
+
+CKPT_PATH=data/outputs/manual/example_dp_eef/checkpoints/latest.ckpt \
+DP_VIDEO_DEVICES=0,6,12 \
+DP_EXECUTE=1 \
+./scripts/run_dp_pro.sh
+
+Action safety remains enabled by default. For a previously validated
+experiment that explicitly requires disabling this layer:
+
+CKPT_PATH=data/outputs/manual/example_dp_eef/checkpoints/latest.ckpt \
+DP_VIDEO_DEVICES=0,6,12 \
+DP_EXECUTE=1 \
+DP_DISABLE_ACTION_SAFETY=1 \
+./scripts/run_dp_pro.sh
+
+Relative checkpoint and trajectory-log paths are resolved against
+diffusion_policy-main/, so the wrapper can be launched from different
+working directories without changing their intended locations.
+
+DP-Joint
+
+DP-Joint uses a separate deployment wrapper and joint-space executor:
+
 CKPT_PATH=data/outputs/manual/example_dp_joint/checkpoints/latest.ckpt \
 DP_JOINT_VIDEO_DEVICES=0,6,12 \
 ./scripts/run_dp_joint_pro.sh
+
+DP-Joint remains an experimental branch. Check the wrapper configuration
+and hardware safety settings before real-robot use.
 ```
 
 ### 7. ACT
