@@ -4,6 +4,10 @@ Real-world visuomotor imitation learning on an ARX5 X5 robot arm. This repositor
 
 This is not a standalone SOTA algorithm release. Diffusion Policy is the primary baseline; ACT and previous-action-conditioned DP-CFG are experimental comparison branches adapted to the ARX5 workflow.
 
+
+https://github.com/user-attachments/assets/fab4e75c-d596-4afa-8ea7-03b0ea71f72b
+
+
 ## Overview
 
 ```mermaid
