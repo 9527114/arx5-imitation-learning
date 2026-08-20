@@ -3,6 +3,7 @@
 Real-world visuomotor imitation learning on an ARX5 X5 robot arm. This repository covers human demonstration collection, three-camera RGB plus robot-state datasets, Diffusion Policy / ACT-style training adapters, action-chunk scheduling, latency-aware deployment, and real-robot execution through the ARX5 SDK.
 
 This is not a standalone SOTA algorithm release. Diffusion Policy is the primary baseline; ACT and previous-action-conditioned DP-CFG are experimental comparison branches adapted to the ARX5 workflow.
+
 Real-robot demo — DP-EEF glue-stick grasping on ARX5 X5：
 
 
