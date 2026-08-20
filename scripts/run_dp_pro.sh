@@ -2,55 +2,60 @@
 set -eo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 source "${ROOT_DIR}/activate_arx5_env.sh"
+
 set -u
 
 export PYTHONPATH="${ROOT_DIR}/diffusion_policy-main:${PYTHONPATH:-}"
 
-# ---------------------------------------------------------------------------
-# Safety / execution
-# ---------------------------------------------------------------------------
-
-# Safe-by-default:
-#   ./scripts/run_dp_pro.sh
-# only runs policy inference / dry-run.
-#
-# Explicit real-robot execution:
-#   DP_EXECUTE=1 ./scripts/run_dp_pro.sh
-DP_EXECUTE="${DP_EXECUTE:-0}"
-
-# Keep action safety enabled by default.
-# Only disable explicitly when required:
-#   DP_DISABLE_ACTION_SAFETY=1 ...
-DP_DISABLE_ACTION_SAFETY="${DP_DISABLE_ACTION_SAFETY:-0}"
-
-# ---------------------------------------------------------------------------
-# DP deployment configuration
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Deployment configuration
+# =============================================================================
 
 DP_SUBMIT_EXTRA_STEPS="${DP_SUBMIT_EXTRA_STEPS:-0}"
 DP_TIMESTAMP_MODE="${DP_TIMESTAMP_MODE:-obs}"
+
 DP_REPLACE_FUTURE="${DP_REPLACE_FUTURE:-0}"
 DP_REPLACE_BLEND_TIME="${DP_REPLACE_BLEND_TIME:-0.10}"
 DP_REPLACE_MIN_LEAD_TIME="${DP_REPLACE_MIN_LEAD_TIME:-0.06}"
+
 DP_PREVIEW_TIME="${DP_PREVIEW_TIME:-0.10}"
 DP_VIDEO_DEVICES="${DP_VIDEO_DEVICES:-}"
 
 CKPT_PATH="${CKPT_PATH:-data/outputs/manual/glue_mini_dp_eef_200/checkpoints/latest.ckpt}"
 
-# ---------------------------------------------------------------------------
-# Optional flags
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Trajectory log
+# =============================================================================
+#
+# Default location:
+#
+#   <repo_root>/
+#     diffusion_policy-main/
+#       data_local/
+#         policy_logs/
+#           dp_continuous_pro.jsonl
+#
+# Using ROOT_DIR here makes the log location independent of the shell's
+# current working directory.
+#
+# You can override it when launching:
+#
+#   TRAJECTORY_LOG=/tmp/dp_test.jsonl ./scripts/run_dp_pro.sh
+#
 
-EXECUTE_ARGS=()
-if [[ "${DP_EXECUTE}" == "1" || "${DP_EXECUTE}" == "true" ]]; then
-  EXECUTE_ARGS+=(--execute)
-fi
+TRAJECTORY_LOG="${
+  TRAJECTORY_LOG:-
+  ${ROOT_DIR}/diffusion_policy-main/data_local/policy_logs/dp_continuous_pro.jsonl
+}"
 
-ACTION_SAFETY_ARGS=()
-if [[ "${DP_DISABLE_ACTION_SAFETY}" == "1" || "${DP_DISABLE_ACTION_SAFETY}" == "true" ]]; then
-  ACTION_SAFETY_ARGS+=(--disable-action-safety)
-fi
+# Make sure the log directory exists.
+mkdir -p "$(dirname "${TRAJECTORY_LOG}")"
+
+# =============================================================================
+# Future trajectory mode
+# =============================================================================
 
 if [[ "${DP_REPLACE_FUTURE}" == "1" || "${DP_REPLACE_FUTURE}" == "true" ]]; then
   REPLACE_FUTURE_FLAG="--continuous-replace-future"
@@ -58,25 +63,31 @@ else
   REPLACE_FUTURE_FLAG="--continuous-append-future"
 fi
 
+# =============================================================================
+# Video devices
+# =============================================================================
+
 VIDEO_DEVICE_ARGS=()
+
 if [[ -n "${DP_VIDEO_DEVICES}" ]]; then
   VIDEO_DEVICE_ARGS+=(--video-devices "${DP_VIDEO_DEVICES}")
 fi
 
-# ---------------------------------------------------------------------------
+# =============================================================================
 # Check checkpoint type
-# ---------------------------------------------------------------------------
+# =============================================================================
 
-CKPT_TARGET="$(
-python - <<PY
+CKPT_TARGET="$(python - <<PY
 import torch
 from pathlib import Path
 
 p = Path("${CKPT_PATH}")
+
 if not p.is_absolute():
     p = Path("${ROOT_DIR}") / "diffusion_policy-main" / p
 
 payload = torch.load(p, map_location="cpu")
+
 print(payload["cfg"].get("_target_", ""))
 PY
 )"
@@ -90,29 +101,26 @@ This checkpoint belongs to arx5_dp_cfg:
 Use scripts/run_dp_cfg_pro.sh for CFG checkpoints.
 Use scripts/run_dp_pro.sh only for pure diffusion_policy checkpoints.
 EOF
+
   exit 2
 fi
 
-# ---------------------------------------------------------------------------
-# Print execution mode
-# ---------------------------------------------------------------------------
+# =============================================================================
+# Information
+# =============================================================================
 
-if [[ "${DP_EXECUTE}" == "1" || "${DP_EXECUTE}" == "true" ]]; then
-  echo "[ARX5] REAL-ROBOT EXECUTION ENABLED"
-else
-  echo "[ARX5] Dry-run mode: robot execution is disabled."
-  echo "[ARX5] Use DP_EXECUTE=1 to enable real-robot execution."
-fi
+echo "[ARX5 DP] checkpoint:"
+echo "  ${CKPT_PATH}"
 
-if [[ "${DP_DISABLE_ACTION_SAFETY}" == "1" || "${DP_DISABLE_ACTION_SAFETY}" == "true" ]]; then
-  echo "[ARX5] WARNING: action safety is disabled."
-else
-  echo "[ARX5] Action safety is enabled."
-fi
+echo "[ARX5 DP] trajectory log:"
+echo "  ${TRAJECTORY_LOG}"
 
-# ---------------------------------------------------------------------------
-# Run
-# ---------------------------------------------------------------------------
+echo "[ARX5 DP] future trajectory mode:"
+echo "  ${REPLACE_FUTURE_FLAG}"
+
+# =============================================================================
+# Run Diffusion Policy
+# =============================================================================
 
 python -m arx5_ckpt_loader.run_arx5_policy \
   --ckpt "${CKPT_PATH}" \
@@ -120,7 +128,7 @@ python -m arx5_ckpt_loader.run_arx5_policy \
   --interface can1 \
   --usb-device 0 \
   --device cuda:0 \
-  "${EXECUTE_ARGS[@]}" \
+  --execute \
   --execution-layer continuous \
   --arm-gain-mode pro \
   --arm-kp-scale 1 \
@@ -133,7 +141,7 @@ python -m arx5_ckpt_loader.run_arx5_policy \
   --action-exec-latency 0 \
   --boundary-blend-steps 0 \
   --no-prepend-current-action \
-  "${ACTION_SAFETY_ARGS[@]}" \
+  --disable-action-safety \
   --continuous-frequency 200 \
   --continuous-max-pos-speed 0.65 \
   --continuous-max-rot-speed 1.05 \
@@ -144,4 +152,4 @@ python -m arx5_ckpt_loader.run_arx5_policy \
   --reset-target home \
   --reset-gripper-target sdk \
   --reset-attempts 0 \
-  --trajectory-log data_local/policy_logs/dp_continuous_pro.jsonl
+  --trajectory-log "${TRAJECTORY_LOG}"
