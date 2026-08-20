@@ -4,7 +4,29 @@ set -eo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 source "${ROOT_DIR}/activate_arx5_env.sh"
 set -u
+
 export PYTHONPATH="${ROOT_DIR}/diffusion_policy-main:${PYTHONPATH:-}"
+
+# ---------------------------------------------------------------------------
+# Safety / execution
+# ---------------------------------------------------------------------------
+
+# Safe-by-default:
+#   ./scripts/run_dp_pro.sh
+# only runs policy inference / dry-run.
+#
+# Explicit real-robot execution:
+#   DP_EXECUTE=1 ./scripts/run_dp_pro.sh
+DP_EXECUTE="${DP_EXECUTE:-0}"
+
+# Keep action safety enabled by default.
+# Only disable explicitly when required:
+#   DP_DISABLE_ACTION_SAFETY=1 ...
+DP_DISABLE_ACTION_SAFETY="${DP_DISABLE_ACTION_SAFETY:-0}"
+
+# ---------------------------------------------------------------------------
+# DP deployment configuration
+# ---------------------------------------------------------------------------
 
 DP_SUBMIT_EXTRA_STEPS="${DP_SUBMIT_EXTRA_STEPS:-0}"
 DP_TIMESTAMP_MODE="${DP_TIMESTAMP_MODE:-obs}"
@@ -13,7 +35,22 @@ DP_REPLACE_BLEND_TIME="${DP_REPLACE_BLEND_TIME:-0.10}"
 DP_REPLACE_MIN_LEAD_TIME="${DP_REPLACE_MIN_LEAD_TIME:-0.06}"
 DP_PREVIEW_TIME="${DP_PREVIEW_TIME:-0.10}"
 DP_VIDEO_DEVICES="${DP_VIDEO_DEVICES:-}"
+
 CKPT_PATH="${CKPT_PATH:-data/outputs/manual/glue_mini_dp_eef_200/checkpoints/latest.ckpt}"
+
+# ---------------------------------------------------------------------------
+# Optional flags
+# ---------------------------------------------------------------------------
+
+EXECUTE_ARGS=()
+if [[ "${DP_EXECUTE}" == "1" || "${DP_EXECUTE}" == "true" ]]; then
+  EXECUTE_ARGS+=(--execute)
+fi
+
+ACTION_SAFETY_ARGS=()
+if [[ "${DP_DISABLE_ACTION_SAFETY}" == "1" || "${DP_DISABLE_ACTION_SAFETY}" == "true" ]]; then
+  ACTION_SAFETY_ARGS+=(--disable-action-safety)
+fi
 
 if [[ "${DP_REPLACE_FUTURE}" == "1" || "${DP_REPLACE_FUTURE}" == "true" ]]; then
   REPLACE_FUTURE_FLAG="--continuous-replace-future"
@@ -26,16 +63,24 @@ if [[ -n "${DP_VIDEO_DEVICES}" ]]; then
   VIDEO_DEVICE_ARGS+=(--video-devices "${DP_VIDEO_DEVICES}")
 fi
 
-CKPT_TARGET="$(python - <<PY
+# ---------------------------------------------------------------------------
+# Check checkpoint type
+# ---------------------------------------------------------------------------
+
+CKPT_TARGET="$(
+python - <<PY
 import torch
 from pathlib import Path
+
 p = Path("${CKPT_PATH}")
 if not p.is_absolute():
     p = Path("${ROOT_DIR}") / "diffusion_policy-main" / p
+
 payload = torch.load(p, map_location="cpu")
 print(payload["cfg"].get("_target_", ""))
 PY
 )"
+
 if [[ "${CKPT_TARGET}" == arx5_dp_cfg.* ]]; then
   cat <<EOF
 This checkpoint belongs to arx5_dp_cfg:
@@ -48,13 +93,34 @@ EOF
   exit 2
 fi
 
+# ---------------------------------------------------------------------------
+# Print execution mode
+# ---------------------------------------------------------------------------
+
+if [[ "${DP_EXECUTE}" == "1" || "${DP_EXECUTE}" == "true" ]]; then
+  echo "[ARX5] REAL-ROBOT EXECUTION ENABLED"
+else
+  echo "[ARX5] Dry-run mode: robot execution is disabled."
+  echo "[ARX5] Use DP_EXECUTE=1 to enable real-robot execution."
+fi
+
+if [[ "${DP_DISABLE_ACTION_SAFETY}" == "1" || "${DP_DISABLE_ACTION_SAFETY}" == "true" ]]; then
+  echo "[ARX5] WARNING: action safety is disabled."
+else
+  echo "[ARX5] Action safety is enabled."
+fi
+
+# ---------------------------------------------------------------------------
+# Run
+# ---------------------------------------------------------------------------
+
 python -m arx5_ckpt_loader.run_arx5_policy \
   --ckpt "${CKPT_PATH}" \
   --model X5 \
   --interface can1 \
   --usb-device 0 \
   --device cuda:0 \
-  --execute \
+  "${EXECUTE_ARGS[@]}" \
   --execution-layer continuous \
   --arm-gain-mode pro \
   --arm-kp-scale 1 \
@@ -67,7 +133,7 @@ python -m arx5_ckpt_loader.run_arx5_policy \
   --action-exec-latency 0 \
   --boundary-blend-steps 0 \
   --no-prepend-current-action \
-  --disable-action-safety \
+  "${ACTION_SAFETY_ARGS[@]}" \
   --continuous-frequency 200 \
   --continuous-max-pos-speed 0.65 \
   --continuous-max-rot-speed 1.05 \
